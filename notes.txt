@@ -1,0 +1,10 @@
+http://id3.org/ID3v2Easy
+
+protocol:exchange audio/pic id -> hash for key then encrypt into (blank) file
+
+http://aircconline.com/ijma/V3N3/3311ijma08.pdf
+http://blog.bjrn.se/2008/10/lets-build-mp3-decoder.html
+
+http://soundfile.sapp.org/doc/WaveFormat/ !!!!!!!!!!!!!!
+
+http://www.ijmer.com/papers/Vol2_Issue6/EN2646344638.pdf
