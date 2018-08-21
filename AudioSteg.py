@@ -56,7 +56,14 @@ class Encoder:
         self.fileOut = fileOut
 
 
-    def encode(self,msg):
+    def encode(self,msg,nRepeat):
+        #set nRepeat to 8 or 4 if lossy connection otherwise use 2 or 1.
+        #Catch weird repeat values
+        if (nRepeat != 1 ) and ( nRepeat != 2 ) and ( nRepeat != 4 ) and ( nRepeat != 8):
+            print("Error: invalid repeat value. Use power of 2 <= 8.")
+            sys.exit(-1)
+
+
         wav_filename = self.fileIn
         with open(wav_filename, 'rb') as f_wav:
             wav = f_wav.read()
@@ -78,8 +85,12 @@ class Encoder:
         #
         #print("cipher text bits:  ",cipherTextBits,"  \n")
 
-        ##create header (length) and repeat 4 times for payload
-        length = len(cipherTextBits) #####length in bits
+        ##create header (length) and repeat nRepeat times for payload
+        #length = len(cipherTextBits) #####length in bits ##### ????????
+        length = len(msg)*nRepeat # NOT SURE YET
+
+
+
         #print(length)
         header = bitfield(length)
         #print(header)
@@ -101,13 +112,13 @@ class Encoder:
 
         payload = []
         for i in range(0,len(cipherTextBits)):
-            temp = [cipherTextBits[i]] * 4
+            temp = [cipherTextBits[i]] * nRepeat
             #print("TEMP: ",temp,"  \n")
             for x in temp:
                 payload.append(x)
 
-        #print("Payload:  ",payload,"   \n")
-        #print(len(payload))
+        print("Payload:  ",payload,"   \n")
+        print(len(payload))
 
         header.extend(payload)
 
@@ -134,6 +145,7 @@ class Encoder:
 
         finalPayloadLengthBytes = len(finalPayload) // 8
         #print("Payload Length Bytes: ",finalPayloadLengthBytes)
+
 
         if(finalPayloadLengthBytes > fileSizeInt - 44):
             print("Size mismatch of payload and file. Adjust either payload or file. \n")
@@ -202,7 +214,7 @@ class Decoder:
     def __init__(self,fileIn):
         self.fileIn = fileIn
 
-    def decode(self):
+    def decode(self,nRepeat):
         wav_filename = self.fileIn
         with open(wav_filename, 'rb') as f_wav:
             wav = f_wav.read()
@@ -219,7 +231,7 @@ class Decoder:
         ##skip first 44
         #read first byte to get Size
         decodeSize = entriesDecode[44]
-        #print("Decode Size: ",decodeSize+1) #including size byte
+        print("Decode Size: ",decodeSize+1) #including size byte
         #print(entriesDecode[44:50])
         #print("FILE SIZE", len(entriesDecode))
         #read the next size*2 bytes
@@ -237,14 +249,71 @@ class Decoder:
             if(len(bufferBits)<8):
                 bufferBits = [0]*(8-len(bufferBits)) + bufferBits
             #print(bufferBits)
-            if(bufferBits[4] == 1):
-                messageBits.append(1)
-            else:
-                messageBits.append(0)
-            if(bufferBits[0] == 1):
-                messageBits.append(1)
-            else:
-                messageBits.append(0)
+            if nRepeat == 8:
+                    if(bufferBits[7] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+            elif nRepeat == 4:
+                    if(bufferBits[4] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[0] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+            elif nRepeat == 2:
+                    if(bufferBits[7] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[5] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[3] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[1] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+            elif nRepeat == 1:
+                    if(bufferBits[7] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[6] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[5] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[4] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[3] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[2] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[1] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+                    if(bufferBits[0] == 1):
+                        messageBits.append(1)
+                    else:
+                        messageBits.append(0)
+
 
         #print(messageBits)
         #print(frombits(messageBits))
@@ -254,10 +323,11 @@ class Decoder:
 
 
 ######## M A I N ##############################################################
+cipherText = input("Enter your cipher text: \n")
 testEn = Encoder(r"Silent.wav",r"SilentCipher.wav")
-testEn.encode("!!!!!!!!!!!!!")
+testEn.encode(cipherText,2)
 testDe = Decoder(r"SilentCipher.wav")
-print(testDe.decode())
+print("Message says: ",testDe.decode(2))
 
 ##FEATURES TO ADD
 #31 character maximum at the moment -> increase
