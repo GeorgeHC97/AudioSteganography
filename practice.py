@@ -90,7 +90,7 @@ if(len(header)<8):
     diff = (8 - len(header))*[0]
     diff.extend(header)
     header = diff
-
+header.reverse()
 #print("header:   ",header,"    \n")
 
 payload = []
