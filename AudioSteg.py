@@ -1,7 +1,8 @@
+
 import struct
 import sys
-
-
+import random
+import tkinter
 #FUNCTIONS######################################################################
 
 def tobits(s):
@@ -56,12 +57,19 @@ class Encoder:
         self.fileOut = fileOut
 
 
-    def encode(self,msg,nRepeat):
+    def encode(self,msg,nRepeat,randomOffsetBool):
         #set nRepeat to 8 or 4 if lossy connection otherwise use 2 or 1.
-        #Catch weird repeat values
+        #set randomOffsetBool to 1 if you want data inserted deeper into file
+
+        #Catch weird arg values
         if (nRepeat != 1 ) and ( nRepeat != 2 ) and ( nRepeat != 4 ) and ( nRepeat != 8):
             print("Error: invalid repeat value. Use power of 2 <= 8.")
             sys.exit(-1)
+
+        if (randomOffsetBool != 0) and (randomOffsetBool != 1):
+            print("Error: Bad randomOffsetBool value.")
+            sys.exit(-1)
+
 
 
         wav_filename = self.fileIn
@@ -117,8 +125,8 @@ class Encoder:
             for x in temp:
                 payload.append(x)
 
-        print("Payload:  ",payload,"   \n")
-        print(len(payload))
+        #print("Payload:  ",payload,"   \n")
+        #print(len(payload))
 
         header.extend(payload)
 
@@ -147,7 +155,7 @@ class Encoder:
         #print("Payload Length Bytes: ",finalPayloadLengthBytes)
 
 
-        if(finalPayloadLengthBytes > fileSizeInt - 44):
+        if(finalPayloadLengthBytes > fileSizeInt - 44) or (44+255+finalPayloadLengthBytes > fileSizeInt):
             print("Size mismatch of payload and file. Adjust either payload or file. \n")
             sys.exit(-1)
 
@@ -165,9 +173,27 @@ class Encoder:
         #   #reconstruct bytes 1-4
         #   #add to new sample data
 
+        if randomOffsetBool:
+            offset = random.randint(0,255)
+            offsetBits = bitfield(offset)
+            if(len(offsetBits)<8):
+                diff = (8 - len(offsetBits))*[0]
+                diff.extend(offsetBits)
+                offsetBits = diff
+                offsetBits.reverse()
+
+            offsetByte = bitsToBytes(offsetBits)
+            #print("Offset: ",offset)
+            #print("Offset bits: ",offsetBits)
+            #print("TEST: ",bin(offset))
+            #print("Offset Byte: ",offsetByte)
+        else:
+            offset = 0
+
+
         #fixed for now
         for i in range(0,int(finalPayloadLengthBytes)):
-            buffer = entries[44+i*2:46+i*2] #read in next 2 bytes
+            buffer = entries[44+i*2+offset:46+i*2+offset] #read in next 2 bytes
             bufferBits0 = bitfield(buffer[0])
             bufferBits1 = bitfield(buffer[1])
             #extend to 8 bits###################
@@ -189,19 +215,28 @@ class Encoder:
 
 
 
-        exitIndex = int(44+finalPayloadLengthBytes) #where the wav returns to normal
+
         #now need to reconstruct
 
         #convert new sample data to BYTES
         newSampleDataBytes = bitsToBytes(newSampleData)
+        exitIndex = int(44+len(newSampleDataBytes)*2+offset) #where the wav returns to normal
+        #print("Exit Index: ",exitIndex, "    Len(bytes):", len(newSampleDataBytes))
 
         #print("WAV header: ",wavHeader)
         #print("Payload Length: ",len(newSampleDataBytes))
-
         cipherFile = wavHeader
-        cipherFile.extend(newSampleDataBytes)
+        if randomOffsetBool:
+            cipherFile.extend(offsetByte)
+            cipherFile.extend(entries[45:(45+offset)])
+            cipherFile.extend(newSampleDataBytes)
+        else:
+            cipherFile.extend(newSampleDataBytes)
+
         cipherFile.extend(entries[exitIndex:])
         cipherFile = bytes(cipherFile)
+
+        #print("TEST: ",entries[44:exitIndex])
 
 
         wav_filename = self.fileOut
@@ -214,7 +249,7 @@ class Decoder:
     def __init__(self,fileIn):
         self.fileIn = fileIn
 
-    def decode(self,nRepeat):
+    def decode(self,nRepeat,randomOffsetBool):
         wav_filename = self.fileIn
         with open(wav_filename, 'rb') as f_wav:
             wav = f_wav.read()
@@ -226,12 +261,19 @@ class Decoder:
 
         #print(entriesDecode[:50])
 
-        #print("Entries decoded: ",entriesDecode[:44])
+        if randomOffsetBool:
+            offset = entriesDecode[44]
+            #print("Offset Decode: ",offset)
+        else:
+            offset = 0
 
         ##skip first 44
         #read first byte to get Size
-        decodeSize = entriesDecode[44]
-        print("Decode Size: ",decodeSize+1) #including size byte
+        if randomOffsetBool:
+            decodeSize = entriesDecode[45+offset]
+        else:
+            decodeSize = entriesDecode[44+offset]
+        #print("Decode Size: ",decodeSize+1) #including size byte
         #print(entriesDecode[44:50])
         #print("FILE SIZE", len(entriesDecode))
         #read the next size*2 bytes
@@ -242,10 +284,15 @@ class Decoder:
 
         messageBits = []
 
+        ##account for weirdness when adding an offset
+        extra = 0
+        if randomOffsetBool:
+            extra = 1
+
         #every other byte
         for i in range(0,decodeSize*2,2):
             #print(entriesDecode[46+i])
-            bufferBits = bitfield(entriesDecode[46+i])
+            bufferBits = bitfield(entriesDecode[46+i+offset+extra])
             if(len(bufferBits)<8):
                 bufferBits = [0]*(8-len(bufferBits)) + bufferBits
             #print(bufferBits)
@@ -323,14 +370,16 @@ class Decoder:
 
 
 ######## M A I N ##############################################################
-cipherText = input("Enter your cipher text: \n")
-testEn = Encoder(r"Silent.wav",r"SilentCipher.wav")
-testEn.encode(cipherText,2)
-testDe = Decoder(r"SilentCipher.wav")
-print("Message says: ",testDe.decode(2))
+
+#cipherText = input("Enter your cipher text: \n")
+#testEn = Encoder(r"Silent.wav",r"SilentCipher.wav")
+#testEn.encode(cipherText,1,1)
+#testDe = Decoder(r"SilentCipher.wav")
+#print("Message says: ",testDe.decode(1,1))
 
 ##FEATURES TO ADD
 #31 character maximum at the moment -> increase
-#If short enough message then random offset in file? as command line option
+#If short enough message then random offset in file? as command line option DONE
+#Maybe make a bigger offset
 #one bit per byte rather than full byte every other byte
 #GUI
