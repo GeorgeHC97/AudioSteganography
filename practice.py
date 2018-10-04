@@ -1,18 +1,12 @@
+
 import struct
+import sys
 
 
 
 
 
 #FUNCTIONS######################################################################
-def bitstring_to_bytes(s):
-    v = int(s, 2)
-    b = bytearray()
-    while v:
-        b.append(v & 0xff)
-        v >>= 8
-    return bytes(b[::-1])
-
 
 def tobits(s):
     result = []
@@ -85,13 +79,24 @@ cipherTextBits = tobits(cipherText)
 
 ##create header (length) and repeat 4 times for payload
 length = len(cipherTextBits) #####length in bits
+print(length)
 header = bitfield(length)
+print(header)
 if(len(header)<8):
     diff = (8 - len(header))*[0]
     diff.extend(header)
     header = diff
+print("Header: ",header)
 header.reverse()
 #print("header:   ",header,"    \n")
+
+##############################TEMPORARY##############################
+# CANT HANDLE SIZES OVER  255
+if(len(header) > 8):
+    print("ERROR: Message length exceeded. \n")
+    sys.exit(-1)
+
+
 
 payload = []
 for i in range(0,len(cipherTextBits)):
@@ -126,8 +131,8 @@ wavHeader = entries[:44]
 
 fileSizeInt = readLittleEndian4Byte(wavHeader[4:8]) #read file size from wavHeader
 
-finalPayloadLengthBytes = len(finalPayload) / 8
-print(finalPayloadLengthBytes)
+finalPayloadLengthBytes = len(finalPayload) // 8
+print("Payload Length Bytes: ",finalPayloadLengthBytes)
 
 if(finalPayloadLengthBytes > fileSizeInt - 44):
     print("Size mismatch of payload and file. Adjust either payload or file. \n")
@@ -162,12 +167,12 @@ for i in range(0,int(finalPayloadLengthBytes)):
     #####################################
     bufferBits = bufferBits0
     bufferBits.extend(bufferBits1)
-    #print(bufferBits)
+    print("Buffer bits: ",bufferBits)
     newByte  = finalPayload[i*8:8+i*8]
     newByte.extend(bufferBits[8:16])
     newPair = newByte
     newSampleData.extend(newPair)
-    #print(newPair)
+    print("New Pair: ",newPair)
 
 
 
@@ -177,8 +182,8 @@ exitIndex = int(44+finalPayloadLengthBytes) #where the wav returns to normal
 #convert new sample data to BYTES
 newSampleDataBytes = bitsToBytes(newSampleData)
 
-print(wavHeader)
-print(len(newSampleDataBytes))
+#print("WAV header: ",wavHeader)
+print("Payload Length: ",len(newSampleDataBytes))
 
 cipherFile = wavHeader
 cipherFile.extend(newSampleDataBytes)
@@ -205,11 +210,16 @@ with open(wav_filename, 'rb') as f_wav:
 ###fix negative values: signed to unsigned
 entriesDecode = list(map(twosComplementFix,entriesDecode))
 
-#print(entriesDecode[:44])
+print(entriesDecode[:50])
+
+#print("Entries decoded: ",entriesDecode[:44])
 
 ##skip first 44
 #read first byte to get Size
 decodeSize = entriesDecode[44]
+print("Decode Size: ",decodeSize+1) #including size byte
+print(entriesDecode[44:50])
+#print("FILE SIZE", len(entriesDecode))
 #read the next size*2 bytes
 #checking lower 4 bits for value
 #append value to results list
@@ -237,6 +247,5 @@ for i in range(0,decodeSize*2,2):
 print(messageBits)
 print(frombits(messageBits))
 
-#########BUG FIXING NOW#####################
-#certain messages cutting off / getting dropped "ayrton", "george"
-#issue with size and float arith?
+#######
+#BUGS: LENGTH OVER 1 BYTE

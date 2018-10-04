@@ -2,7 +2,7 @@
 import struct
 import sys
 import random
-import tkinter
+
 #FUNCTIONS######################################################################
 
 def tobits(s):
